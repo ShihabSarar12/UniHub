@@ -12,7 +12,7 @@ const generateRefreshToken = async (id) => {
 		expiresIn: '7d',
 	});
 	const [{ affectedRows }] = await pool.query(
-		`INSERT INTO token_management (user_id, token) VALUES (?, ?)`,
+		`INSERT INTO token_management (userId, token) VALUES (?, ?)`,
 		[id, refreshToken]
 	);
 	if (affectedRows === 0) throw new Error('Failed to add token');

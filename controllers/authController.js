@@ -1,33 +1,10 @@
 import expressAsyncHandler from 'express-async-handler';
-import pool from '../config/db.js';
+import jwt from 'jsonwebtoken';
+import { pool } from '../config/db.js';
 import {
 	generateAccessToken,
 	generateRefreshToken,
 } from '../utilities/generateToken.js';
-
-const authGetSpecializedUser = async (user_id) => {
-	const [[facilitator]] = await pool.query(
-		`SELECT facilitator_id FROM facilitators WHERE user_id = ?`,
-		[user_id]
-	);
-	if (facilitator?.facilitator_id) return facilitator.facilitator_id;
-	const [[trainer]] = await pool.query(
-		`SELECT trainer_id FROM trainers WHERE user_id = ?`,
-		[user_id]
-	);
-	if (trainer?.trainer_id) return trainer.trainer_id;
-	const [[athlete]] = await pool.query(
-		`SELECT athlete_id FROM athletes WHERE user_id = ?`,
-		[user_id]
-	);
-	if (athlete?.athlete_id) return athlete.athlete_id;
-	const [[parent]] = await pool.query(
-		`SELECT parent_id FROM parents WHERE user_id = ?`,
-		[user_id]
-	);
-	if (parent?.parent_id) return parent.parent_id;
-	return null;
-};
 
 const authValidates = expressAsyncHandler(async (req, res, next) => {
 	const { email } = req.body;
@@ -48,23 +25,37 @@ const authValidates = expressAsyncHandler(async (req, res, next) => {
 const authLogin = expressAsyncHandler(async (req, res) => {
 	const { verified, user } = req;
 	const { password, ...filteredUser } = user;
-	//TODO have to make changes to the Specialized User
-	const specializedUserId = await authGetSpecializedUser(
-		filteredUser.user_id
+	res.status(verified ? 200 : 403).json({
+		loginStatus: verified ? true : false,
+		user: verified ? filteredUser : null,
+		accessToken: verified ? generateAccessToken(filteredUser.userId) : null,
+		refreshToken: verified
+			? await generateRefreshToken(filteredUser.userId)
+			: null,
+	});
+});
+
+const authLogout = expressAsyncHandler(async (req, res) => {
+	const { accessToken, refreshToken } = req.body;
+	if (!refreshToken || !accessToken) {
+		res.status(400).json({
+			message: 'Token is missing',
+		});
+		return;
+	}
+	const [insertStatus] = await pool.query(
+		`INSERT INTO blacklisted_token (refreshToken, accessToken) VALUES (?, ?)`,
+		[refreshToken, accessToken]
 	);
-	res.status(verified && specializedUserId ? 200 : 403).json({
-		loginStatus: verified && specializedUserId ? true : false,
-		specializedUserId:
-			verified && specializedUserId ? specializedUserId : null,
-		user: verified && specializedUserId ? filteredUser : null,
-		accessToken:
-			verified && specializedUserId
-				? generateAccessToken(filteredUser.user_id)
-				: null,
-		refreshToken:
-			verified && specializedUserId
-				? await generateRefreshToken(filteredUser.user_id)
-				: null,
+	if (insertStatus.affectedRows === 0)
+		throw new Error('Failed to blacklist token');
+	const [{ affectedRows }] = await pool.query(
+		`DELETE FROM token_management WHERE token = ?`,
+		[refreshToken]
+	);
+	if (affectedRows === 0) throw new Error('Failed to log out');
+	res.status(200).json({
+		message: 'Successfully logged out',
 	});
 });
 
@@ -98,16 +89,14 @@ const authCheckRefreshToken = expressAsyncHandler(async (req, res) => {
 	}
 	const [deletionStatus] = await pool.query(
 		`DELETE FROM token_management WHERE userId = ? AND token = ?`,
-		[available.user_id, token]
+		[available.userId, token]
 	);
-	if (deletionStatus.affectedRows === 0)
-		throw new Error('Failed to delete refresh token');
 	const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
 	const accessToken = generateAccessToken(decoded.id);
 	const refreshToken = await generateRefreshToken(decoded.id);
 	const [{ affectedRows }] = await pool.query(
 		`INSERT INTO token_management (userId, token) VALUES (?, ?)`,
-		[available.user_id, refreshToken]
+		[available.userId, refreshToken]
 	);
 	if (affectedRows === 0) throw new Error('Failed to update refresh token');
 	res.status(200).json({
@@ -141,8 +130,7 @@ const authRegister = expressAsyncHandler(async (req, res) => {
 		return;
 	}
 	let message = '';
-	const emailRegex =
-		/^[a-zA-Z0-9._%+-]+?\.(student|cafeteria|bus|faculty|club)(\.\d+)?@aust\.edu$/;
+	const emailRegex = /^[a-zA-Z0-9._%+-]+@aust\.edu$/;
 	if (typeof name !== 'string' || typeof email !== 'string') {
 		res.status(400).json({
 			message: 'Bad input',
@@ -168,4 +156,10 @@ const authRegister = expressAsyncHandler(async (req, res) => {
 	});
 });
 
-export { authValidates, authLogin, authCheckRefreshToken, authRegister };
+export {
+	authValidates,
+	authLogin,
+	authCheckRefreshToken,
+	authRegister,
+	authLogout,
+};
