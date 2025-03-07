@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { errorHandler, notFound } from './middlewares/errorMiddleware.js';
 import authRouter from './routes/authRoute.js';
+import vendorRouter from './routes/vendorRoute.js';
 
 dotenv.config();
 const app = express();
@@ -11,6 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use(authRouter);
+app.use(vendorRouter);
 
 //! remove after testing
 app.get('/', async (req, res) => {

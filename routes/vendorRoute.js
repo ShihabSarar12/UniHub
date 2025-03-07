@@ -1,19 +1,24 @@
 import { Router } from 'express';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect } from '../middlewares/authMiddleware.js';
 import {
+	vendorCompleteOrder,
 	createFoodItem,
 	deleteFoodItem,
 	editFoodItem,
 	getFoodItems,
+	getVendorPreorderItems,
 } from '../controllers/vendorController.js';
 
 const vendorRouter = Router();
 
-vendorRouter
-	.route('/foodItem')
-	.post(protect, createFoodItem)
-	.get(protect, getFoodItems);
+vendorRouter.route('/foodItem').post(createFoodItem).get(getFoodItems);
 
-vendorRouter.route('/foodItem/:menuId').patch(protect, editFoodItem);
+vendorRouter.route('/foodItem/:menuId').patch(editFoodItem);
 
-vendorRouter.route('/foodItem/:menuId').delete(protect, deleteFoodItem);
+vendorRouter.route('/foodItem/:menuId').delete(deleteFoodItem);
+
+vendorRouter.route('/preorder').get(getVendorPreorderItems);
+
+vendorRouter.route('/preorder/confirm').patch(vendorCompleteOrder);
+
+export default vendorRouter;
