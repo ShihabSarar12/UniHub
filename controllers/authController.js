@@ -106,10 +106,16 @@ const authCheckRefreshToken = expressAsyncHandler(async (req, res) => {
 });
 
 const authRegister = expressAsyncHandler(async (req, res) => {
-	const { name, email } = req.body;
+	const { name, email, type } = req.body;
 	if (!name) {
 		res.status(400).json({
 			message: 'Full name is missing',
+		});
+		return;
+	}
+	if (!type) {
+		res.status(400).json({
+			message: 'Type is missing',
 		});
 		return;
 	}
