@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { protect } from '../middlewares/authMiddleware.js';
 import {
 	vendorCompleteOrder,
 	createFoodItem,
